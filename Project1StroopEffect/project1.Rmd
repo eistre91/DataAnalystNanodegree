@@ -1,0 +1,60 @@
+---
+title: "Project 1 Stroop Effect"
+author: "Erik Istre"
+date: "April 9, 2016"
+output: pdf_document
+---
+
+## Questions For Investigation
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+library(ggplot2)
+library(dplyr)
+
+stroop <- read.csv('stroopdata.csv', header=TRUE)
+
+mean_c <- mean(stroop$Congruent)
+mean_i <- mean(stroop$Incongruent)
+std_c <- sd(stroop$Congruent)
+std_i <- sd(stroop$Incongruent)
+diffs <- stroop$Incongruent - stroop$Congruent
+mean_diffs <- mean(diffs)
+std_diffs <- sd(diffs)
+sem <- std_diffs / sqrt(24)
+t_stat <- mean_diffs / sem
+```
+
+### 1. What is our independent variable? What is our dependent variable?
+
+The independent variable is the congruency of the color the ink and the word displayed. The dependent variable is the time it takes to name the ink colors given in a list.
+
+### 2. What is an appropriate set of hypotheses for this task? What kind of statistical test do you expect to perform? Justify your choices.
+
+We have two samples to compare in this study, thus our hypothesis are about whether these are significantly different samples. The null hypothesis is that there is no difference in the average times between the two cases, i.e. the difference between the mean of the times in the congruent case ($\mu_{\text{cong}}$) and the mean of the times in the incongruent case ($\mu_{\text{incong}}$) is zero. Symbolically, $H_{0}: \mu_{\text{incong}} - \mu_{\text{cong}} = 0$ The alternative hypothesis is that the times are longer in the incongruent case, i.e. that the mean of the times in the incongruent case is greater than the mean of the times in the congruent case. Symbolically, $H_a: \mu_{\text{incong}} - \mu_{\text{cong}} > 0$.
+
+We will perform a one-tailed dependent t-test to evaluate significance since the samples were taken from the same participants under different conditions. Further, the t-statistic will be more accurate since we don't have estimates for population statistics and our sample size is relatively small at 24.
+
+### 3. Report some descriptive statistics regarding this dataset. Include at least one measure of central tendency and at least one measure of variability.
+
+The mean time in the congruent case was 14.05 seconds with a standard deviation of 3.56, while the mean time in the incongruent case was 22.02 seconds with a standard deviation of 4.80. In the case of the differences of the two cases we have a mean of 7.96 seconds with a standard deviation of 4.86. 
+
+### 4. Provide one or two visualizations that show the distribution of the sample data. Write one or two sentences noting what you observe about the plot or plots.
+
+```{r, echo=FALSE, warning=FALSE}
+ggplot(stroop) +
+  geom_bar(stat='identity', aes(x=as.numeric(rownames(stroop)), y=Incongruent, fill='Incongruent')) +
+  geom_bar(stat='identity', aes(x=as.numeric(rownames(stroop)), y=Congruent, fill='Congruent')) +
+  scale_x_discrete(limits=as.numeric(rownames(stroop)), breaks=seq(1,24)) +
+  scale_y_continuous(limits=c(0, 36), breaks=seq(0,40,5)) +
+  ylab("Seconds") +
+  xlab("Participant") + 
+  scale_fill_discrete(name="", breaks=c("Incongruent", "Congruent"), labels=c("Incongruent", "Congruent")) 
+```
+
+The plot strongly suggests that there is a consistent difference in the time it takes in the congruent versus the incongruent case. Every participant performed worse in the congruent case, some with very large margins.
+
+### 5. Now, perform the statistical test and report your results. What is your confidence level and your critical statistic value? Do you reject the null hypothesis or fail to reject it? Come to a conclusion in terms of the experiment task. Did the results match up with your expectations?
+
+I'm setting my threshold for statistical significance at 0.05. With our sample size of 24, and our degrees of freedom of 23, our critical t-statistic value is 1.714. Our calculated t-statistic is 8.02, which is a great deal larger than our critical value, and so we reject the null hypothesis. In fact, our p-value is too large for the table, so the best we can say is p < .0005. We also have Cohen's d of 1.63 which characterizes a large effect size.
+
+This all suggests that the Stroop effect is real and strong. It takes longer to determine the color of a word when the actual word means a different one. This is inline with expectations. It takes extra effort and thought to separate the color of the word from the meaning of it which intuitively suggests it would take longer.
