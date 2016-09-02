@@ -1,0 +1,9 @@
+Resources used:
+
+I mainly used the documentation for the xml library, MongoDB, and Python 3 in general. 
+
+Some forum answers I also used:
+
+http://stackoverflow.com/questions/1249388/removing-all-non-numeric-characters-from-string-in-python    
+
+http://stackoverflow.com/questions/30214295/how-to-get-distinct-values-from-pymongo
