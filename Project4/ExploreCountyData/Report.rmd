@@ -1,0 +1,674 @@
+---
+title: 'Economic and Census 2007-2015 Data Exploration'
+author: "Erik Istre"
+date: "September 17, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE)
+```
+
+I've downloaded four small datasets from the U.S. Census Bureau with county level information on poverty, population, unemployment and median household income, and education. These datasets were downloadable as .xls files. I'm mainly just generally interested to poke around this data, but I might also be able to gain some insight into the recession of 2008. I'll be focused on the latter as a way to guide my investigation.
+
+There's 3284 rows in Education.xls, 3274 in PopulationEstimates.xls, 3195 in PovertyEstimates.xls, 3276 in Unemployment.xls. The counties are identified by name and FIP code. I plan to read the data in by first resaving the data in csv format. 
+
+There is some preliminary cleaning before that. The column containing the FIPS code was named as "FIPS, FIPS Code, FIPStxt" which I manually changed in each to the same "FIPS". Similarly, the county name column was named "Area\_Name, Area name, Area Name" and those have have been turned into "Area\_Name". There were some variations in the Rural Urban Continuum Code and Urban Influence Code column names that were also standardized. There's also some extraneous text in the first few rows to be taken out. With that gone, I saved the files as csv's. We can now read them in to R.
+
+```{r}
+setwd("C:/DataAnalystNanodegree/Project4/ExploreCountyData/")
+poverty <- read.csv("PovertyEstimates.csv")
+unemployment <- read.csv("Unemployment.csv")
+population <- read.csv("PopulationEstimates.csv")
+education <- read.csv("Education.csv")
+```
+
+Both PopulationEstimates.xls and Unemployment.xls Area\_Name column have county names given with the state code, like "Autauga County, AL". The following code removes the state codes from this column.
+
+```{r}
+population$Area_Name <- sub(",.+", "", population$Area_Name)
+unemployment$Area_Name <- sub(",.+", "", unemployment$Area_Name)
+```
+
+Now we can combine the data frames into one to do cross comparisons. We will also select down to our main variables of interest. The variables we will be interested in are Economic\_typology\_2015, Unemployment\_rate\_<year>, Percent.of.adults.completing.<education amount>.<year>, PCTPOVALL\_2014, POP\_ESTIMATE\_<year>, R\_birth\_<year>, and R\_death\_<year>. What each of these variables represent is described in the accompanying DataDocumentation.txt.
+
+```{r}
+library(dplyr)
+
+df1 <- full_join(population, unemployment, by=c("FIPS", "State", "Area_Name"))
+df2 <- full_join(df1, poverty, by=c("FIPS", "State", "Area_Name"))
+df <- full_join (df2, education, by=c("FIPS", "State", "Area_Name"))
+
+df <- df %>%
+  select(FIPS, State, Area_Name,
+         Economic_typology_2015, contains("Unemployment_rate"),
+         contains("Percent"), -contains("Med"), PCTPOVALL_2014,
+         contains("POP_ESTIMATE"), contains("R_birth"), contains("R_death"))
+```
+
+The Economic Typology column categorizes the primary economic contributor for the county. It's values are coded as numbers in the data, but it'll be easier to work with if we translate it to what each number stands for. Code translations from a different data set [here](http://www.ers.usda.gov/data-products/county-typology-codes.aspx).
+
+```{r}
+map <- data.frame(from=c(0,1,2,3,4,5), 
+                  to=c("Nonspecialized", "Farm", "Mining", 
+                        "Manufacturing", "Fed/State, Government", "Recreation"))
+df$Economic_typology_2015 <- map$to[match(df$Economic_typology_2015, map$from)]
+```
+
+It may help to have the view features from the dplyr library's tbl_df so let's convert it over.
+
+```{r}
+df <- tbl_df(df)
+```
+
+Let's start looking at what's present. I noticed that some of the data sets include Puerto Rico, so we'll have more than 50 states listed. Let's only look at the 50 states with DC.
+
+```{r}
+states_list <- c("AK","AL","AR","AZ","CA","CO","CT","DC","DE","FL","GA","HI",
+                 "IA","ID","IL","IN","KS","KY","LA","MA","MD","ME","MI","MN",
+                 "MO","MS","MT","NC","ND","NE","NH","NJ","NM","NV","NY","OH",
+                 "OK","OR","PA","RI","SC","SD","TN","TX","UT","VA","VT","WA",
+                 "WI","WV","WY")
+```
+
+Some of the datasets have a "United States" level row which we'll also take out. We'll start by looking at simple summaries of main variables of interest.
+
+```{r}
+df_states <- df %>%
+  filter(State %in% states_list)
+
+area_identifiers <- paste('County|Parish|Borough|Area|Municipality|',
+                    'City|city|Park|Division|Islands', sep="")
+
+df_states_level <- df_states[!grepl(area_identifiers, 
+                                    df_states$Area_Name),]
+
+df_counties <- df_states[grepl(area_identifiers, 
+                               df_states$Area_Name),]
+```
+
+It turns out there's further unpredictability to the data. The above grep details that a little bit more than what I thought were the names of counties was included in Area\_Name. There's also two FIPS codes for DC listed. A web search reveals 11001 as the correct FIPS. There's also something with a blank area name.
+
+Turns out that DC is double coded in some of the sets. All the information is the same for DC, except for the FIPS code. I deleted the extraneous rows in the datasets. Also apparently the blank one was an Alaska area of FIPS code 02270 that was missing its name of "Wade Hampton Census Area". I've added that to the data. Also one of the Louisiana entries is misspelled as Lousiana.
+
+Now we can finally get to some data exploration. To start, we'll look at state level average for a variety of variables. We'll start with unemployment rates and look at the distribution of those values.
+
+```{r}
+library(tidyr)
+library(ggplot2)
+library(gridExtra)
+library(GGally)
+  
+unemployment_rates_df <- df_states_level %>%
+  select(contains("Unemployment_rate")) %>%
+  gather(key = year, value = unemployment_rate)
+  
+grid.arrange(ggplot(unemployment_rates_df, aes( x = 1, y = unemployment_rate ) ) +
+               geom_boxplot(alpha = 0.2, color = 'red' ),
+             ggplot(unemployment_rates_df, aes( x   = unemployment_rate ) ) + 
+               geom_histogram(bins=30 ) +
+               scale_x_continuous(limits = c(0, NA)),
+            ncol=2)  
+```
+
+Most of the data falls between an unemployment rate of 2.5 and 10. there are some outliers, but we can be pretty sure that these numbers are accurate and reflect actual circumstances in particular states. Further, this includes unemployment rates during the 2008 recession, so we would expect some high numbers. Let's look at the unemployment rate for each year over that time period.
+
+```{r}
+ggplot(aes(x = year, y = unemployment_rate), data=unemployment_rates_df) +
+  geom_boxplot() + 
+  scale_x_discrete(labels=c(2007,2008,2009,2010,2011,2012,2013,2014,2015))
+```
+
+We see the expected rise in employment during the recession. It's interesting to see that it took until 2010 to reach it's worst. The median bar is quite low in the boxes during 2009 and 2010 and the interquartile range gets bigger which suggests that there was considerable variation in how some states were affected. We can calculate some basic statistics to confirm these observations.
+
+```{r}
+unemployment_rates_df %>%
+  group_by(year) %>%
+  summarise(median_unemployment = median(unemployment_rate),
+            IQR_unemployment = IQR(unemployment_rate),
+            mean_unemployment = mean(unemployment_rate),
+            stddev_unemployment = sd(unemployment_rate))
+```
+
+Both the interquartile range and standard deviation demonstrate that the amount of general variance in unemployment rates increased during the recession. There's also the economic typology variable to throw in later. Some sectors of the economy might have been harder hit and that might explain some variation in increases of unemployment.
+
+Next what about education levels? The data in our dataset about that covers decade periods for 1970, 1980, 1990, 2000, then 2000-2014. The rates are further split according to highest amount of education achieved: no high school diploma, only a high school diploma, some college/2-year degree, 4-year degree or more. We'll first look at the distribution of values across the amounts.
+
+```{r}
+df_states_level <- df_states_level %>% rename(Percent.of.adults.completing.some.college.1.3.years..1970 = Percent.of.adults.completing.some.college..1.3.years...1970, Percent.of.adults.completing.some.college.1.3.years..1980 = Percent.of.adults.completing.some.college..1.3.years...1980)
+
+education_rates_df <- df_states_level %>%
+  select(Area_Name, contains("Percent")) %>%
+  gather(key = amountandyear, value = education_rate, -Area_Name) %>%
+  separate(amountandyear, c("amount", "year"), sep="\\.\\.")
+
+#education_rates_df$education_rate[is.na(sapply(education_rates_df$education_rate, function (x) as.numeric(x)))]
+
+amounts <- c("Percent.of.adults.with.less.than.a.high.school.diploma",         
+"Percent.of.adults.with.a.high.school.diploma.only",              
+"Percent.of.adults.completing.some.college.1.3.years",            
+"Percent.of.adults.completing.four.years.of.college.or.higher",   
+"Percent.of.adults.completing.some.college.or.associate.s.degree",
+"Percent.of.adults.with.a.bachelor.s.degree.or.higher")
+
+map <- data.frame(from=amounts,
+                  to=c("No HS Diploma", "Only HS Diploma", 
+                       "Some College/Associate's", 
+                       "4-Years College/Bachelor's", 
+                       "Some College/Associate's", 
+                       "4-Years College/Bachelor's"))
+
+education_rates_df$amount <- map$to[match(education_rates_df$amount, map$from)]
+
+education_rates_df$education_rate <- as.numeric(education_rates_df$education_rate)
+
+grid.arrange(ggplot(education_rates_df, aes( x = 1, y = education_rate ) ) +  
+             geom_boxplot(alpha = 0.2, color = 'red' ),
+           ggplot(education_rates_df, aes( x   = education_rate ) ) + 
+             geom_histogram(bins=30 ),
+          ncol=2)  
+```
+
+The education rates look fairly normally distributed with a longer right tail. There does appear to be some states which do considerably better than others in education rates but there is no particular reason to suspect these points are not accurate data. We may be able to learn more about the distribution of values if we look at rates within each amount. 
+
+```{r}
+grid.arrange(ggplot(education_rates_df, aes( x = 1, y = education_rate ) ) +  
+              geom_boxplot(alpha = 0.2, color = 'red' ) +
+              facet_wrap(~amount),
+           ggplot(education_rates_df, aes( x   = education_rate ) ) + 
+              geom_histogram(bins=30 ) +
+              facet_wrap(~amount),
+          ncol=2)  
+```
+
+The distribution of rates for "No HS Diploma" is considerably flatter and wider than the other distributions. We also see this represented as a larger IQR in the boxplot. This suggests that we see the most variation among states in the percentage of their population without a high school diploma. But this also includes different years, so perhaps what we're seeing is considerable variation in no HS diploma over the years. We also see the suggestion of a bimodal distribution in the "Some College" group. This may also be due to improvement over the years. Let's look at education across the years now.
+  
+```{r}
+ggplot(aes(x=year, y=education_rate), data=education_rates_df) +
+  geom_boxplot() +
+  facet_wrap(~amount)
+
+#LSHS HSD, CSC, C4M
+#No HS Diploma, HS Diploma, Some College/Associate's
+#, 4-Years College/Bachelor's
+
+```
+
+We see now that the variation in No HS Diploma seems due to a steady decrease in those without HS diplomas rather than any sharp difference between states. The bi-modal shape of the group with some college seems due to the sharp increase in the data from the 1980 decade period to the 1990 period. 
+
+The Only HS Disploma rate is near constant which I find pretty interesting since No HS Diploma is decreasing rapidly. But it's likely because Only HS Diploma is tracking people who only have a HS Diploma. The increases we see in the Some College and 4-Years in College groups are balancing out the decreases in the No HS Diploma. I also wonder if we can use 2010-2014 education rates as to get a sense if education rate influenced how hard the recession hit a state.
+
+There's an obvious outlier in the 4-years college group so I'm curious what state that is.
+
+```{r}
+education_rates_df %>% 
+  filter(amount == "4-Years College/Bachelor's") %>%
+  arrange(desc(education_rate)) %>%
+  filter(Area_Name == "District of Columbia")
+```
+
+The District of Columbia is the area with the highest education rate of 4-year college degrees. 
+
+The poverty data is only from 2014 so we won't be able to gather too much information from that on the recession. I'm still interested to see what state level differences we can see. Let's look at the general distribution of the numbers.
+
+```{r}
+grid.arrange(ggplot(df_states_level, aes( x = 1, y = PCTPOVALL_2014 ) ) +  
+             geom_boxplot(alpha = 0.2, color = 'red' ),
+           ggplot(df_states_level, aes( x = PCTPOVALL_2014 ) ) + 
+             geom_histogram(bins=10 ),
+          ncol=2)  
+```
+
+Nothing too peculiar here. Compared to the other data, this look fairly well behaved. On to the state by state comparison. 
+
+```{r}
+#df_states_level$PCTPOVALL_2014
+
+poverty_order <- arrange(df_states_level, PCTPOVALL_2014)
+
+ggplot(aes(x=State, y=PCTPOVALL_2014), data=poverty_order) +
+  geom_bar(stat='identity') +
+  scale_x_discrete(limits=poverty_order$State) +
+  theme(axis.text.y  = element_text(angle=30, size=8)) +
+  coord_flip()
+```
+
+We have some population numbers from 1990, 2000, 2010, and 2015. We can first look at what different values we get for population.
+
+```{r}
+population_states <- df_states_level %>%
+  select(contains('POP_ESTIMATE')) %>%
+  gather(key = year, value = population)
+
+population_states$population <- as.numeric(gsub(",", "", 
+                                                population_states$population))
+
+grid.arrange(ggplot(population_states, aes( x = 1, y = population ) ) +  
+             geom_boxplot(alpha = 0.2, color = 'red' ),
+           ggplot(population_states, aes( x = population ) ) + 
+             geom_histogram(bins=30 ),
+          ncol=2) 
+```
+
+As we might have expected, this gives a clear picture that there's considerable variation in population sizes. The outliers in the boxplot are probably the same states but in different years. Let's see what's the spread in population and its trend over the years.
+
+```{r}
+ggplot(aes(x = year, y = population), data=population_states) + 
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+population_states %>%
+  group_by(year) %>%
+  summarise(median_pop = median(population),
+            IQR_pop = IQR(population),
+            mean_pop = mean(population),
+            std_pop = sd(population))
+```
+
+The graph and standard deviation shows a lot of variation between states as expected. However, I also expected to see some general upward trend. It's there, but very small. But I guess it makes sense it wouldn't be obviously visible when we take into consideration how large the population already is and that it might only grow by a few percentage points from year to year. 
+
+This completes a general overview of the data. Now to dig down a little bit deeper in our exploration of the 2008 recession. Our primary marker for this will be unemployment rate which certainly can't tell us the whole story but it's what we have available. We'll also begin using the more granular county level data. The first thing I want to look at is economic typologies and how that might have affected the impact of the recession. Let's first get an overview of the counts for different economic typologies.
+
+```{r}
+ggplot(df_counties, aes( x = Economic_typology_2015 ) ) +
+  geom_bar()
+```
+
+A considerable portion are Nonspecialized, but at least 50% are specialized in something in particular. The exact counts and proportions are next.
+
+```{r}
+df_counties %>%
+  group_by(Economic_typology_2015) %>%
+  summarise(count = n(),
+            proportion = n()/dim(df_counties)[1])
+```
+
+Let's now look at the relationship between the 2015 economic typology and unemployment rate during the 2007-2015 period. Note if there were significant shifts in a county's economic typology due to the recession, the data here can't reveal that. We can look at this first as a boxplot to get a sense of the variation in unemployment. 
+
+```{r}
+unemployment_rates <- df_counties %>%
+  filter(!is.na(Economic_typology_2015)) %>%
+  select(Area_Name, Economic_typology_2015, contains("unemployment_rate")) %>%
+  gather(key = year, value = rate, contains("unemployment_rate")) %>%
+  filter(!is.na(rate)) %>%
+  arrange(Area_Name)
+
+unemployment_rates$year <- sapply(unemployment_rates$year, function(x) as.numeric(gsub("Unemployment_rate_", "", x)))
+
+ggplot(aes(x=factor(year), 
+           y=rate, 
+           color=Economic_typology_2015), 
+       data=unemployment_rates) +
+  geom_boxplot()
+```
+
+This shows that there's considerable variation in how different places were fairing before and during the recession. Note the general increase in the size of the boxes, and thus the IQR, and how some outliers seem to get further and further out. We can calculate and plot these variance values to get a clearer sense.
+
+```{r}
+mean_rates <- unemployment_rates %>%
+  group_by(Economic_typology_2015, year) %>%
+  summarise(median_rate = median(rate),
+            IQR_rate = IQR(rate),
+            mean_rate = mean(rate),
+            stddev_rate = sd(rate)) %>%
+  ungroup()
+
+ggplot(aes(x=year, y=stddev_rate, color=Economic_typology_2015),
+       data=mean_rates) +
+  geom_line(size=1)
+```
+
+We see that the standard deviation increased across for each economic typology. The mining line also suggests a more recent increase in deviation, which suggests perhaps some mining businesses are doing badly even after the recession. We can get a sense of the general trend of the unemployment rate across the typologies by plotting the mean unemployment rates.
+
+```{r}
+ggplot(aes(x=year, y=mean_rate, color=Economic_typology_2015), 
+       data=mean_rates) +
+  geom_line(size=1)
+```
+
+The trend in each line is pretty similar. Farming and mining stay a lot lower than the other 4 but it's hard to tell whether that's from them starting low in the first place. If we normalize the data by 2007's numbers we might get a better idea.
+
+```{r}
+mean_rates$increase_in_unemployment <- 0
+#Not sure how to do this in a functional programming style, i.e. no for loop.
+for(type in unique(mean_rates$Economic_typology_2015)) {
+mean_rates[mean_rates$Economic_typology_2015 == type,]$increase_in_unemployment <- (mean_rates[mean_rates$Economic_typology_2015 == type,]$mean_rate) - 
+     (mean_rates[mean_rates$Economic_typology_2015 == type & mean_rates$year == 2007,]$mean_rate)
+}
+
+ggplot(aes(x = year, y = increase_in_unemployment, 
+           color = Economic_typology_2015), 
+       data=mean_rates) +
+  geom_line(size=1)
+```
+
+By subtracting 2007's values from each year, we see the difference between 2007 and the following years. The shape doesn't change for any line since we're subtracting the same value from each point. The interesting thing is that we can now determine how much unemployment increased for each economy type. And the increases were proportional with what unemployment was to begin with. That is, the economy types with the highest unemployments also saw the biggest increases.A side note, it's interesting to see that all unemployment rates are decreasing up to 2015 again with the exception for the mining type which goes up at the end of the graph.
+
+Now what about education rates? Did counties with better education rates do better in the recession?
+
+```{r}
+df_counties <- df_counties %>% rename(Percent.of.adults.completing.some.college.1.3.years..1970 = Percent.of.adults.completing.some.college..1.3.years...1970, Percent.of.adults.completing.some.college.1.3.years..1980 = Percent.of.adults.completing.some.college..1.3.years...1980)
+
+education_rates <- df_counties %>%
+  select(Area_Name, contains("unemployment_rate"), 
+         contains("Percent"), -contains("Med")) %>%
+  select(Area_Name:Unemployment_rate_2015, contains("2010.2014")) %>%
+  gather(key = amountandyear, value = education_rate, 
+         contains("percent")) %>%
+  separate(amountandyear, c("amount", "year"), sep="\\.\\.") %>%
+  select(-year) %>%
+  gather(key = year, value = unemployment_rate, 
+         contains("Unemployment_rate")) %>%
+  arrange(Area_Name)
+
+amounts <- c("Percent.of.adults.with.less.than.a.high.school.diploma",         
+"Percent.of.adults.with.a.high.school.diploma.only",              
+"Percent.of.adults.completing.some.college.1.3.years",            
+"Percent.of.adults.completing.four.years.of.college.or.higher",   
+"Percent.of.adults.completing.some.college.or.associate.s.degree",
+"Percent.of.adults.with.a.bachelor.s.degree.or.higher")
+
+translate <- c("No HS Diploma", "Only HS Diploma", 
+               "Some College/Associate's", 
+               "4-Years College/Bachelor's", 
+               "Some College/Associate's", 
+               "4-Years College/Bachelor's")
+
+map <- data.frame(from=amounts ,to=translate)
+
+education_rates$amount <- map$to[match(education_rates$amount, map$from)]
+education_rates$amount <- factor(education_rates$amount, levels=translate)
+
+education_rates$year <- sapply(education_rates$year, function(x) as.numeric(gsub("Unemployment_rate_", "", x)))
+
+mean_unemployment_education <- education_rates %>% 
+  filter(!is.na(education_rate), !is.na(unemployment_rate)) %>%
+  group_by(year, amount, education_rate) %>%
+  summarise(mean_unemployment = mean(unemployment_rate, na.rm=TRUE))
+
+ggplot(aes(x=year, y=mean_unemployment, 
+           color=education_rate, group=education_rate), 
+       data=mean_unemployment_education) +
+  geom_line() +
+  facet_wrap(~amount) 
+```
+
+The contrast in the 4-years education rate looks pretty stark. As the rate of four year degrees improved, the unemployment rate gets lower for the county over the 8 year period. There's also the suggestion of the reverse trend in the group that only has High School diplomas which I find interesting. It may be that places with better High School graduation rates in which people stop at that point also have higher rates of Bachelor's degrees. Thus it's capturing that if you were a worker in such a place, the college educated workers were getting the jobs and leaving you out of a job. I wonder if I can make it even clearer by bucketing the education rates.
+
+```{r}
+education_rates$education_rate_bucket <- 
+  cut(education_rates$education_rate, seq(from=0, to=100, by=1))
+
+mean_unemployment_educationbucket <- education_rates %>%
+  filter(!is.na(education_rate), !is.na(unemployment_rate)) %>%
+  group_by(year, amount, education_rate_bucket) %>%
+  summarise(mean_unemployment = mean(unemployment_rate, na.rm=TRUE))
+
+cc <- scales::seq_gradient_pal("blue", "red", "Lab")(seq(0,1,length.out=100))
+ggplot(aes(x=year, y=mean_unemployment, color=education_rate_bucket), data=mean_unemployment_educationbucket) +
+  geom_line() +
+  scale_colour_manual(values=cc) +
+  facet_wrap(~amount)
+```
+
+This actually makes it less clear. I prefer the original visualization to this one. It's still a very noisy graph though. Maybe it can be made clearer if we take a different approach.
+
+```{r}
+ggplot(aes(x=education_rate, y=mean_unemployment, color=factor(year) ), data=mean_unemployment_education) +
+  geom_point(size=0.3) +  
+  geom_smooth(method = "lm", se = FALSE,size=1)  +
+  facet_wrap(~amount) +      
+  scale_color_brewer(type='seq', guide=guide_legend(title='year'))
+```
+
+The regression lines suggest two entirely different trends for those with some college or greater and those without. Maybe this is reflecting a much larger trend that unemployment among higher educated workers is improving in general? It seems pretty suggestive that having the No HS Diploma was strongly negatively associated with higher unemployment and that having at least 4-year college degree predicted less unemployment. We can look at correlation coefficients as well to get another idea of the relationship.
+
+```{r}
+mean_unemployment_education %>%
+  group_by(amount) %>%
+  summarise(cor(education_rate, mean_unemployment))
+```
+
+The correlations do suggest that there is relationship here that really is occurring and further that there are different relationships between those with and those without some college. Another hypotheses about the cause of this effect is that perhaps that states that tend to have more highly educated populations also happen to have lower unemployment numbers. This could happen if states with stronger economies naturally attract more highly educated populations.
+
+One other thing we can look at is whether there was significant shift in births and deaths. We only have second half of 2010 through 2015 in this data, so we'll have to see if there's a significant shift. We would need more data to confirm anything. A shift in these could be because less money means you're less likely to be able to afford children and an increase in deaths could result from not being able to cope with medical expenses and putting off check ups. We'll look at these numbers in terms of birth rate and death rate so we don't have to be worried about the growing population changing things.
+
+```{r}
+birth_rates <- df_counties %>%
+  select(State, Area_Name, contains("R_birth")) %>%
+  gather(key = year, value = birth_rate, R_birth_2011:R_birth_2015)
+
+death_rates <- df_counties %>%
+  select(State, Area_Name, contains("R_death")) %>%
+  gather(key = year, value = death_rate, R_death_2011:R_death_2015)
+
+birth_rates$year <- sapply(
+  birth_rates$year, function (x) as.numeric(gsub("R_birth_", "", x)))
+death_rates$year <- sapply(
+  death_rates$year, function (x) as.numeric(gsub("R_death_", "", x)))
+
+change_rates <- inner_join(birth_rates, death_rates, 
+                           by = c('State', 'Area_Name', 'year'))
+change_rates <- change_rates %>% unite(Area_and_State, 
+                                       Area_Name, State, remove=FALSE)
+
+ggplot(aes(factor(year), 
+            birth_rate), 
+        data = change_rates) +
+  geom_jitter( alpha = .3)  +
+  geom_boxplot( alpha = .5,color = 'blue')+
+  stat_summary(fun.y = "mean", 
+               geom = "point", 
+               color = "red", 
+               shape = 8, 
+               size = 4)
+
+ggplot(aes(factor(year), 
+            death_rate), 
+        data = change_rates) +
+  geom_jitter( alpha = .3)  +
+  geom_boxplot( alpha = .5,color = 'blue')+
+  stat_summary(fun.y = "mean", 
+               geom = "point", 
+               color = "red", 
+               shape = 8, 
+               size = 4)
+```
+
+There does seem to be a relative jump in 2013 but of course there's no way to know what this actually means. We can improve on these plots a bit because it's way too cluttered if I plot it this way. I'll try taking the state level means.
+
+```{r}
+mean_change_rates <- change_rates %>% 
+  group_by(State, year) %>%
+  filter(!is.na(birth_rate), !is.na(death_rate)) %>%
+  summarise(mean_birth_rate = mean(birth_rate),
+            mean_death_rate = mean(death_rate))
+
+ggplot(aes(factor(year), 
+            mean_birth_rate), 
+        data = mean_change_rates) +
+  geom_jitter( alpha = .3)  +
+  geom_boxplot( alpha = .5,color = 'blue')+
+  stat_summary(fun.y = "mean", 
+               geom = "point", 
+               color = "red", 
+               shape = 8, 
+               size = 4)
+
+ggplot(aes(factor(year), 
+            mean_death_rate), 
+        data = mean_change_rates) +
+  geom_jitter( alpha = .3)  +
+  geom_boxplot( alpha = .5,color = 'blue')+
+  stat_summary(fun.y = "mean", 
+               geom = "point", 
+               color = "red", 
+               shape = 8, 
+               size = 4)
+```
+
+There remains an interesting jump in median death rate and mean death rate in 2013 on the order of half a percent and then there's an apparent sharp drop going into 2014. I'm not sure what that could mean but exploring this probably isn't possible with what's available in this data. Without getting more data, I'll have to leave this question for another time.
+
+Finally, I'm interested in doing a type of heat map of the US, coloring places by a gradient that marks the recession at their worst. This will give an impression of which places were hit hardest, regardless of whether it happened at the same time as other places. We'll calculate the highest increase in unemployment for a county from 2007 through 2011 to graph.
+
+```{r}
+map_counties <- map_data('county')
+map_counties <- tbl_df(map_counties)
+
+df_counties$Area_Name <- sapply(df_counties$Area_Name, tolower)
+map_counties$subregion <- sapply(map_counties$subregion, tolower)
+
+df_counties$Area_Name <- sapply(df_counties$Area_Name, 
+                                function (x) gsub('[[:punct:]]', '', x))
+map_counties$subregion <- sapply(map_counties$subregion, 
+                                 function (x) gsub('[[:punct:]]', '', x))
+
+df_counties$Area_Name <- sapply(df_counties$Area_Name, function (x) 
+  gsub(area_identifiers, '', x, ignore.case = TRUE))
+map_counties$subregion <- sapply(map_counties$subregion, function (x) 
+  gsub(area_identifiers, '', x, ignore.case = TRUE))
+
+df_counties$Area_Name <- sapply(df_counties$Area_Name, 
+                                function (x) gsub('[[:space:]]', '', x))
+map_counties$subregion <- sapply(map_counties$subregion, 
+                                 function (x) gsub('[[:space:]]', '', x))
+
+#match on state and converted subregions. Shouldn't be many that match on both state and subregion even if they end up blank in subregion like park
+
+#df_counties$Area_Name[!(df_counties$Area_Name %in% map_counties$subregion)]
+#map_counties$subregion[!(map_counties$subregion %in% df_counties$Area_Name)]
+
+#Need to translate abbreviations to full to match with map_counties
+state_translations <- df_states_level %>%
+  select(State, Area_Name) 
+state_translations$Area_Name <- sapply(state_translations$Area_Name, tolower)
+df_counties$State <- state_translations$Area_Name[match(df_counties$State, state_translations$State)]
+
+df_counties$unemploy_inc_2008 <- df_counties$Unemployment_rate_2008 - df_counties$Unemployment_rate_2007
+df_counties$unemploy_inc_2009 <- df_counties$Unemployment_rate_2009 - df_counties$Unemployment_rate_2007
+df_counties$unemploy_inc_2010 <- df_counties$Unemployment_rate_2010 - df_counties$Unemployment_rate_2007
+df_counties$unemploy_inc_2011 <- df_counties$Unemployment_rate_2011 - df_counties$Unemployment_rate_2007
+
+unemployment_map <- inner_join(df_counties, map_counties, by = c("Area_Name" = "subregion", "State" = "region"))
+unemployment_map <- unemployment_map %>% 
+  select(State, Area_Name, lat, long, group, 
+         unemploy_inc_2008:unemploy_inc_2011) %>%
+  gather(key=year, value=unemploy_inc, 
+         unemploy_inc_2008:unemploy_inc_2011) 
+unemployment_map$year <- sapply(unemployment_map$year, function(x) 
+  as.numeric(gsub("unemploy_inc_", "", x)))
+
+max_unemployment <- unemployment_map %>%
+  group_by(State, Area_Name) %>%
+  summarise(max_inc = max(unemploy_inc))
+
+max_unemployment_map <- inner_join(max_unemployment, 
+                                   map_counties, 
+                                   by = c("Area_Name" = "subregion", 
+                                          "State" = "region"))
+
+ggplot(aes(x=long, y=lat, group=group, fill=max_inc), 
+       data=max_unemployment_map) + 
+  geom_polygon() +
+  coord_map()
+```
+
+The grey areas are from missing data. The lighter the color in the area, the more a region's unemployment increased during the 2008 recession. We see that the central US seems to have fared the best, but that the region to the east of Texas did particularly bad, as well as out around California.
+
+## Final Plots and Summary
+
+When we're discussing rates as we do in many of these graphs, we're discussing percentages of the population which are classified in certain categories, that is, unemployed or impoverished. 
+
+I thought that the first graph I did for the poverty rates in different states needed some polishing to be more readable. So I've chosen this plot as one to split into a two column plot, which makes it a much easier graph to read. 
+
+```{r}
+library(gridExtra)
+
+percent <- function(x) {
+  return(paste(as.character(x), "%", sep=""))
+}
+
+p1 <- ggplot(aes(x=State, y=PCTPOVALL_2014), 
+             data=slice(poverty_order, 27:51)) +
+  geom_bar(stat='identity', fill="blue3") +
+  scale_x_discrete(limits=slice(poverty_order,27:51)$State) +
+  scale_y_continuous(limits=c(0,22), labels=percent) +
+  ylab("Poverty Rate") +
+  theme_bw() +
+  coord_flip() 
+
+p2 <- ggplot(aes(x=State, y=PCTPOVALL_2014), 
+             data=slice(poverty_order, 1:27)) +
+  geom_bar(stat='identity', fill="blue3") +
+  scale_x_discrete(limits=slice(poverty_order,1:27)$State) +
+  scale_y_continuous(limits=c(0,22), labels=percent) +
+  ylab("Poverty Rate") +
+  theme_bw() +
+  coord_flip() 
+
+grid.arrange(p1, p2, ncol=2, top="Poverty Rates by State")
+```
+
+I think this plot, while not very complicated, is important because it highlights the huge disparity between states with regards to economic features. We're not always aware that a state can have a poverty rate over 20 like Mississippi or New Mexico, while some states are around 10% like New Hampshire or Maryland. We can be a little more specific about this by looking at the standard deviation and the maximum and minimum values.
+
+```{r}
+poverty_order %>%
+  summarise(stddev_poverty_rate = sd(PCTPOVALL_2014),
+            maximum_poverty_rate = max(PCTPOVALL_2014),
+            minimum_poverty_rate = min(PCTPOVALL_2014))
+```
+
+We see a standard deviation of about 3, which means that the maximum and minimum value are separated by 4 standard deviations. I think it's important when looking at data on the US to remember the variety we can encounter over an entire nation as large and varied as the US.
+
+I really like the heat map type map of the US which demonstrated the places where the recession hit the hardest. I cleaned up that graph to look exactly as we would expect a map to and made sure the labels allowed the map to be interpreted without any additional text. 
+
+```{r}
+ggplot(aes(x=long, y=lat, group=group, fill=max_inc), 
+       data=max_unemployment_map) + 
+  geom_polygon() +
+  coord_map() +
+  scale_fill_gradient(name="Unemployment\nIncrease", low="blue", high="red",
+                      labels=percent) +
+  ggtitle("Highest Unemployment Increase During 2007-2011") +
+  theme_bw() +
+  theme(axis.title.x = element_blank(), 
+        axis.title.y = element_blank(), 
+        axis.ticks = element_blank(), 
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(),
+        panel.border = element_blank(), 
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        legend.title = element_text(size=10),
+        legend.text = element_text(size=8))
+
+```
+
+I think this is a useful visualization to reveal what areas were affected and which were not. We see some clustering of red in certain counties, but also distinctly clustering of blue. It seems that some places fared distinctly better than others, particularly North Dakota, South Dakota and Nebraska look pretty blue. On the other hand, the southeast and the west look pretty hard hit. California, Nevada, Arizona, and the west part of Montana and the north part of Idaho in the west look pretty red. Mississippi looks pretty bad off during this time, as well as Alabama along with the general spread of unemployment increases in that area. Comparably, the northeast was also mildly affected, though still more than the Dakota area.
+
+Finally, I liked the trend demonstrated by plotting unemployment along with education rates across the 2007-2015 period. I cleaned that graph up and also changed the theme to help in improving contrast.
+
+```{r}
+fouryear <- mean_unemployment_education %>%
+  filter(amount == "4-Years College/Bachelor's")
+
+ggplot(aes(x=education_rate, y=mean_unemployment, color=factor(year) ), 
+       data=fouryear) +
+  geom_point(size=0.3, alpha=1/3) +  
+  geom_smooth(method = "lm", se = FALSE,size=1)  +
+  scale_color_brewer(type='seq', guide=guide_legend(title='Year')) +
+  theme_dark() +
+  xlab("Education Rate") +
+  ylab("Unemployment Rate") +
+  scale_x_continuous(labels=percent) +
+  scale_y_continuous(labels=percent) + 
+  ggtitle("Yearly Unemployment Rates\nPer 4-Year College Education Rate")
+```
+
+We see the distinct effect of that the increase of the rate of 4-year college degrees appears to have on the unemployment rate. However, we also see the regression line for each year shifts purely up in the y direction as we reach the height of the recession. This means that no matter the education rate, there was still an increase in unemployment. However, an interesting observation rests in comparing the vertical distance between the lines for the lower education rates and the distance for the higher education rates. It does look like the line move closer as the education rate increases, which does suggest that higher education rates are more resilient to increases in unemployment. 
+
+## Reflection
+
+The most time-consuming and difficult part of the project was making sure the data was uniform across the various data sets. This was a very iterative process, as I would make a plot or summary, realize something had to be going wrong, then have to hunt what was going wrong. The simplest things, like a typo in the spelling of state, caused problems. 
+
+I'm very happy with the heat map and the graph using the education rates. These together demonstrate two interesting facts: which places were hit hardest, and that higher education rates correlated with lower unemployment. Further exploration would extend the data with more comprehensive data over the 2007-2015 period, and continue to look around for various benchmarks, like poverty rate, which would have increased during the recession and which factors correlated with those.

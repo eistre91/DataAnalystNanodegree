@@ -1,0 +1,25 @@
+This project used four datasets from the U.S. Census Bureau with county level information on poverty, population, unemployment and median household income, and education. These datasets are joined on the county name, state, and FIPS code.
+
+A dataset from map_data in R is used to provide coordinates for county regions.
+
+The combined data frame had 3324 rows with 218 variables. The main variables used are:
+
+FIPS: A code used to denote each individual county.
+
+State: The abbreviated state code.
+
+Area_Name: The name of the county/region/area.
+
+Economic_typology_2015: The predominant economic driver in the county.
+
+Unemployment_rate_<year>: Contains the unemployment rate, the percentage of those unemployed where unemployed uses the US Census Bureau's definition, for a county in a given <year>.
+
+Percent.of.adults.completing.<education amount>.<year>: The education rates are given as percentages of people achieving certain levels of education over certain year periods. These are all converted to more descriptive names which more explicity reveal what education level is in question.
+
+PCTPOVALL_2014: The poverty rate for the year 2014 for each county or state.
+
+POP_ESTIMATE_<year>: Gives the estimated population for an area in a given year.
+
+R_birth_<year>: Gives the birth rate, as a percentage of population, of a particular area.
+
+R_death_<year>: Gives the death rates, as a percentage of population, of a particular area.

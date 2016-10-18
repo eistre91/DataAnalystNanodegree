@@ -1,0 +1,14 @@
+Translating values from one to another by some map:
+http://stackoverflow.com/questions/18456968/how-do-i-map-a-vector-of-values-to-another-vector-with-my-own-custom-map-in-r
+
+Changing ggplot axes look:
+http://www.cookbook-r.com/Graphs/Axes_(ggplot2)/
+
+How to convert number strings that contain commas:
+http://stackoverflow.com/questions/1523126/how-to-read-data-when-some-numbers-contain-commas-as-thousand-separator
+
+Gradiant for discrete values:
+#http://stackoverflow.com/questions/30352412/how-do-you-create-a-gradient-of-colors-for-a-discrete-variable-in-ggplot2
+
+How to plot on a map of the counties of the US:
+http://stackoverflow.com/questions/23714052/ggplot-mapping-us-counties-problems-with-visualization-shapes-in-r
