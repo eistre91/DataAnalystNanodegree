@@ -1,0 +1,191 @@
+<html>
+  <h2>Is friend-to-friend lending better than person-to-person?</h2>
+  <div id="chartArea" style="height:650px; width:800px">
+    <p>Prosper Loans offers loan financed by crowd sourcing funds from ordinary people looking for investments. 
+  This is known as person-to-person lending. Prosper Loans records if a friend has contributed financing.
+  The charts below look for variation in the number and proportion of 2008 Prosper Loan turnout (whether paid-in-full or defaulted) between those
+  loans that had contributions from friends and those that did not.</p>
+    <strong><div id="chartTitle" style="text-align:center">Loading...</div></strong>
+    <div id="chartContainer1">
+    </div>
+    <div id="chartContainer2">
+    </div>
+    <div id="chartContainer3">
+    </div>
+    <div id="chartContainer4">
+    </div>
+    <div id="chartContainer5">
+    </div>
+    <form name="chartChooser" style="text-align:right">
+      <span id="buttons" style="display:none">
+        <input type="button" name="chart1" value="1"/>
+        <input type="button" name="chart2" value="2"/>
+        <input type="button" name="chart3" value="3"/>
+        <input type="button" name="chart4" value="4"/>
+        <input type="button" name="chart5" value="5"/>
+      </span>
+    </form>
+  </div>
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="http://dimplejs.org/dist/dimple.v2.3.0.min.js"></script>
+  <script type="text/javascript"> 
+    var chartTitle = d3.select("#chartTitle")
+    var svg1 = dimple.newSvg("#chartContainer1", 800, 600);
+    var svg2 = dimple.newSvg("#chartContainer2", 800, 600);
+    var svg3 = dimple.newSvg("#chartContainer3", 800, 600);
+    var svg4 = dimple.newSvg("#chartContainer4", 800, 600);
+    var svg5 = dimple.newSvg("#chartContainer5", 800, 600);
+
+    d3.csv("project6data.csv", function(d) {
+    return {
+      FriendsInvolvedNum: +d.FriendsInvolvedNum,
+      LoanOriginalAmount: +d.LoanOriginalAmount,
+      LoanStatusNum: +d.LoanStatusNum,
+      LoanStatus: String(d.LoanStatus),
+      FriendsInvolved: String(d.FriendsInvolved),
+      ListingKey: String(d.ListingKey),
+      FriendsAndStatus: String(d.FriendsAndStatus)
+      }
+    },
+    function (data) {
+      var loan_status = new dimple.chart(svg1, data);
+      var x = loan_status.addCategoryAxis("x", "LoanStatus");
+      x.title = "Loan Turnout";
+      var y = loan_status.addMeasureAxis("y", "ListingKey");
+      y.title = "Number of Loans";
+      var s = loan_status.addSeries(null, dimple.plot.bar);
+      loan_status.draw();
+      
+      var friends = new dimple.chart(svg2, data);
+      var xf = friends.addCategoryAxis("x", "FriendsInvolved");
+      xf.title = "Did friends contribute financing?";
+      var yf = friends.addMeasureAxis("y", "ListingKey");
+      yf.title = "Number of Loans";
+      var sf = friends.addSeries(null, dimple.plot.bar);
+      friends.draw();
+      
+      var no_friends_status_data = dimple.filterData(data, "FriendsInvolved", ["False"])
+      var no_friends_status = new dimple.chart(svg3,no_friends_status_data);
+      var xnfs = no_friends_status.addCategoryAxis("x", "LoanStatus");
+      xnfs.title = "Loan Turnout";
+      var ynfs = no_friends_status.addMeasureAxis("y", "ListingKey");
+      ynfs.title = "Number of Loans";
+      var snfs = no_friends_status.addSeries(null, dimple.plot.bar);
+      no_friends_status.draw();
+
+      var friends_status_data = dimple.filterData(data,"FriendsInvolved", ["True"])
+      var friends_status = new dimple.chart(svg4,friends_status_data);
+      var xfs = friends_status.addCategoryAxis("x", "LoanStatus");
+      xfs.title = "Loan Turnout";
+      var yfs = friends_status.addMeasureAxis("y", "ListingKey");
+      yfs.title = "Number of Listings"
+      var sfs = friends_status.addSeries(null, dimple.plot.bar);
+      friends_status.draw();    
+    });
+    
+    d3.csv("project6datapro.csv", function(data) {
+        var proportions = new dimple.chart(svg5,data);
+        var xp = proportions.addCategoryAxis("x", "FriendsInvolved");
+        xp.title = "Did friends contribute financing?"
+        var yp = proportions.addMeasureAxis("y", "Proportion");
+        yp.title = "Percent of Loans"
+        var sp = proportions.addSeries("LoanStatus", dimple.plot.bar);
+        proportions.addLegend(240, 30, 510, 20, "right");
+        proportions.draw();    
+        
+        chartTitle.text("Overall Counts of Loan Turnout")
+        svg1.style("display", "inline");
+        svg1.style("opacity", 1);
+        svg2.style("display", "none");
+        svg2.style("opacity", 0);
+        svg3.style("display", "none");
+        svg3.style("opacity", 0);
+        svg4.style("display", "none");
+        svg4.style("opacity", 0);
+        svg5.style("display", "none");
+        svg5.style("opacity", 0);
+        
+        var choice = "1";
+        var buttons = d3.select("#buttons");
+        buttons.style("display", "inline");
+        for (var i=1; i<=5; i++) {
+          var button = document.chartChooser["chart" + i];
+          button.onclick = function() {
+             var t1 = d3.transition()
+            .duration(1500)
+            .ease(d3.easeLinear);
+             var t2 = d3.transition()
+            .duration(1500)
+            .ease(d3.easeLinear);
+             var t3 = d3.transition()
+            .duration(1500)
+            .ease(d3.easeLinear);    
+             var t4 = d3.transition()
+            .duration(1500)
+            .ease(d3.easeLinear);    
+             var t5 = d3.transition()
+            .duration(1500)
+            .ease(d3.easeLinear);                
+        
+            switch (choice) { // hide last choice
+              case "1":
+                svg1.style("opacity", 0);
+                svg1.style("display", "none");
+                break;
+              case "2":
+                svg2.style("opacity", 0);
+                svg2.style("display", "none");
+                break;
+              case "3":
+                svg3.style("opacity", 0);
+                svg3.style("display", "none");
+                break;
+              case "4":
+                svg4.style("opacity", 0);
+                svg4.style("display", "none");
+                break;
+              case "5":
+                svg5.style("opacity", 0);
+                svg5.style("display", "none");
+                break;
+              default:
+                console.log("Error: not a set value.")
+                break;
+            }
+            choice = this.value;
+            switch (choice) {
+              case "1":
+                svg1.style("display", "inline");
+                svg1.transition(t1).style("opacity", 1);
+                chartTitle.text("Overall Counts of Loan Turnout");
+                break;
+              case "2":
+                svg2.style("display", "inline");
+                svg2.transition(t2).style("opacity", 1);
+                chartTitle.text("Overall Counts of Loans Contributed to by Friends");
+                break;
+              case "3":            
+                svg3.style("display", "inline");
+                svg3.transition(t3).style("opacity", 1);
+                chartTitle.text("Loan Turnout For Loans Without Friends Contributing");
+                break;
+              case "4":
+                svg4.style("display", "inline");
+                svg4.transition(t4).style("opacity", 1);
+                chartTitle.text("Loan Turnout for Loans With Friends Contributing");
+                break;
+              case "5":
+                svg5.style("display", "inline");
+                svg5.transition(t5).style("opacity", 1);
+                chartTitle.text("Proportion of Loan Turnout With/without Friends Contributing");
+                break;
+              default:
+                console.log("Error: not a set value.")
+                break;
+            }
+            console.log(choice);
+          };
+        }
+      });  
+  </script>
+</html>

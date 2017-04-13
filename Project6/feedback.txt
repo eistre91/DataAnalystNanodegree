@@ -1,0 +1,15 @@
+Feedback - Person 1
+
+A lot of notes on wording in the summary and in axis titles which helps make it a lot clearer to laymen, like paid-in-full vs paid and loan vs listing. Renamed loan status to loan turnout in the graphs themselves. 
+
+What do you think is the main takeaway from this visualization?
+
+To make loans to friends since they pay back at better rates.
+
+Feedback - Person 2
+
+The graphs were found to be pretty straightforward. No changes were really suggested other than a typo fix.
+
+What do you think is the main takeaway from this visualization?
+
+That loans from friends are paid back at about the same rate as others.
