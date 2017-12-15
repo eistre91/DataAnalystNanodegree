@@ -1,0 +1,10 @@
+(lp0
+Vpoi
+p1
+aVexercised_stock_options
+p2
+aVtotal_stock_value
+p3
+aVbonus
+p4
+a.

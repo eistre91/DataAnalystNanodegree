@@ -1,0 +1,139 @@
+<html>
+  <h2>Is friend-to-friend lending better than person-to-person?</h2>
+  <div id="chartArea" style="height:650px; width:800px">
+    <p>Prosper Loans offers loans financed by crowd-sourced funds from individual investors. 
+  This is known as person-to-person lending. When payments end on a loan, either because it was paid-in-full or defaulted, this is recorded as Loan Turnout. Prosper Loans also records whether the contributors to a loan are friends or strangers. The charts below look for variation in the number and proportion of 2008 Prosper Loan Turnout between those loans that had contributions from friends and those that did not.</p>
+    <strong><div id="chartTitle" style="text-align:center">Loading...</div></strong>
+    <div id="chartContainer1">
+    </div>
+    <div id="chartContainer2">
+    </div>
+    <div id="chartContainer3">
+    </div>
+    <div id="chartContainer4">
+    </div>
+    <form name="chartChooser" style="text-align:right">
+      <span id="buttons" style="display:none">
+        <input type="button" name="chart1" value="1"/>
+        <input type="button" name="chart2" value="2"/>
+        <input type="button" name="chart3" value="3"/>
+        <input type="button" name="chart4" value="4"/>
+      </span>
+    </form>
+  </div>
+  <script src="https://d3js.org/d3.v4.min.js"></script>
+  <script src="http://dimplejs.org/dist/dimple.v2.3.0.min.js"></script>
+  <script type="text/javascript"> 
+    // This doesn't work in Google Chrome since I think Chrome
+    // doesn't allow local files to be loaded by default.
+    // No idea how to work around that.
+  
+    // Select the chart title container.
+    var chartTitle = d3.select("#chartTitle")
+    // Initialize the SVG tags for the charts.
+    var svg = dimple.newSvg("#chartContainer1", 800, 600);
+    //var svg2 = dimple.newSvg("#chartContainer2", 800, 600);
+    //var svg3 = dimple.newSvg("#chartContainer3", 800, 600);
+    //var svg4 = dimple.newSvg("#chartContainer4", 800, 600);
+
+    // Read in the data and specify the correct data types.
+    d3.csv("project6data.csv", function(d) {
+      return {
+        FriendsInvolvedNum: +d.FriendsInvolvedNum,
+        LoanOriginalAmount: +d.LoanOriginalAmount,
+        LoanStatusNum: +d.LoanStatusNum,
+        LoanStatus: String(d.LoanStatus),
+        FriendsInvolved: String(d.FriendsInvolved),
+        ListingKey: String(d.ListingKey),
+        FriendsAndStatus: String(d.FriendsAndStatus)
+        };
+      },
+    // Once the data is read in, it is passed to this function.
+    function (data) {
+      // Read in the data containing the computed proportions.
+      d3.csv("project6datapro.csv", function(prop_data) {
+        // Chart for Overall Counts of Loan Turnout
+        var loan_status = new dimple.chart(svg, data);
+        var x = loan_status.addCategoryAxis("x", "LoanStatus");
+        x.title = "Loan Turnout";
+        var y = loan_status.addMeasureAxis("y", "ListingKey");
+        y.title = "Number of Loans";
+        y.tickFormat = "";
+        var s = loan_status.addSeries(null, dimple.plot.bar);
+        
+        // Chart for Overall Counts of Loan Turnout With Atleast 1 Friend Investor
+        var friends = new dimple.chart(svg, data);
+        var xf = friends.addCategoryAxis("x", "FriendsInvolved");
+        xf.title = "Did friends invest?";
+        var yf = friends.addMeasureAxis("y", "ListingKey");
+        yf.title = "Number of Loans";
+        yf.tickFormat = "";
+        var sf = friends.addSeries(null, dimple.plot.bar);
+        
+        // Chart for Overall Counts of Loan Turnout With/Without Friends Investing
+        var friends_and_status = new dimple.chart(svg, data);
+        var xfas = friends_and_status.addCategoryAxis("x", "FriendsInvolved");
+        xfas.title = "Did friends invest?";
+        var yfas = friends_and_status.addMeasureAxis("y", "ListingKey");
+        yfas.title = "Number of Loans";
+        yfas.tickFormat = "";
+        var sfas = friends_and_status.addSeries("LoanStatus", dimple.plot.bar);
+        sfas.addOrderRule(["Paid", "Defaulted"]);
+        friends_and_status.addLegend(240, 30, 510, 20, "right");
+        
+        // Chart for Proporition of Loan Turnout With/Without Friends Investing
+        var proportions = new dimple.chart(svg,prop_data);
+        var xp = proportions.addCategoryAxis("x", "FriendsInvolved");
+        xp.title = "Did friends invest?";
+        var yp = proportions.addMeasureAxis("y", "Proportion");
+        yp.title = "Percent of Loans";
+        var sp = proportions.addSeries("LoanStatus", dimple.plot.bar);
+        proportions.addLegend(240, 30, 510, 20, "right"); 
+        
+        // Set initial chart title and only show the first chart.
+        chartTitle.text("Overall Counts of Loan Turnout")
+        loan_status.draw();
+        
+        // Set initial choice to the first chart.
+        var choice = "1";
+        // Reveal the chart navigation buttons.
+        var buttons = d3.select("#buttons");
+        buttons.style("display", "inline");
+        // Give each button an onclick function to handle behavior.
+        for (var i=1; i<=4; i++) {
+          // Get the button chart + i under the named DOM element chartChooser.
+          var button = document.chartChooser["chart" + i];
+          // Give the button an onclick.
+          button.onclick = function() {
+            // Remove the previously chosen chart.
+            svg.selectAll("*").remove();
+            
+            // Show the newly chosen chart.
+            choice = this.value;
+            switch (choice) {
+              case "1":
+                loan_status.draw();
+                chartTitle.text("Overall Counts of Loan Turnout");
+                break;
+              case "2":
+                friends.draw();
+                chartTitle.text("Overall Counts of Loan Turnout With Atleast 1 Friend Investor");
+                break;
+              case "3":            
+                friends_and_status.draw();
+                chartTitle.text("Overall Counts of Loan Turnout With/Without Friends Investing");
+                break;
+              case "4":
+                proportions.draw();
+                chartTitle.text("Proportion of Loan Turnout With/Without Friends Investing");
+                break;
+              default:
+                console.log("Error: not a set value.")
+                break;
+            }
+          };
+        }
+      });
+    });
+  </script>
+</html>
